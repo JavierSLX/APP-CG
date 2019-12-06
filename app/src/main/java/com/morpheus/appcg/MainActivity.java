@@ -14,12 +14,17 @@ import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.highlight.Highlight;
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener;
+import com.morpheus.appcg.Controller.DAO.MedidaDBDAO;
 import com.morpheus.appcg.Controller.MedidaDAO;
+import com.morpheus.appcg.Controller.ProcessMedida;
 import com.morpheus.appcg.Model.LinesChart;
 import com.morpheus.appcg.Model.Medida;
 import com.morpheus.appcg.Model.Request;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -46,7 +51,9 @@ public class MainActivity extends AppCompatActivity implements OnChartValueSelec
         progressDialog.setCancelable(false);
         progressDialog.setCanceledOnTouchOutside(false);
 
-        getData();
+        //Obtiene informacion
+        //getData();
+        getDataLite();
 
         //Eventos
         btAgregar.setOnClickListener(eventAgregar);
@@ -67,7 +74,7 @@ public class MainActivity extends AppCompatActivity implements OnChartValueSelec
             }
             else
             {
-                MedidaDAO.getInstance().setValue(MainActivity.this, Double.valueOf(cadena), new Request.OnResultElementListener<String>()
+                /*MedidaDAO.getInstance().setValue(MainActivity.this, Double.valueOf(cadena), new Request.OnResultElementListener<String>()
                 {
                     @Override
                     public void onSuccess(String response)
@@ -81,11 +88,25 @@ public class MainActivity extends AppCompatActivity implements OnChartValueSelec
                     {
                         Toast.makeText(MainActivity.this, error + " " + statusCode, Toast.LENGTH_SHORT).show();
                     }
-                });
+                });*/
+                progressDialog.dismiss();
+                try
+                {
+                    ProcessMedida process = ProcessMedida.getInstance();
+                    double gc = process.calculoGC(Double.parseDouble(cadena), 1.78, (int)process.getYears(process.getDate("1987-10-24"), new Date()), true);
+                    MedidaDBDAO.getInstance().insertar(MainActivity.this, new Medida(0, process.getTodayDateString(), Double.parseDouble(cadena), gc));
+
+                    getDataLite();
+                    edtPeso.setText("");
+                } catch (ParseException e)
+                {
+                    e.printStackTrace();
+                }
             }
         }
     };
 
+    //Datos dados por API externa
     private void getData()
     {
         progressDialog.show();
@@ -112,6 +133,17 @@ public class MainActivity extends AppCompatActivity implements OnChartValueSelec
         });
     }
 
+    //Datos dados por SQLite interno
+    private void getDataLite()
+    {
+        medidas = MedidaDBDAO.getInstance().listar(this);
+        doChart(medidas);
+
+        //Asigna el ultimo valor GC al TextView
+        if(medidas.size() > 0)
+            asignarGC(medidas.get(medidas.size() - 1).getGc());
+    }
+
     private void doChart(List<Medida> lista)
     {
         List<Double> pesos = new ArrayList<>();
@@ -121,8 +153,10 @@ public class MainActivity extends AppCompatActivity implements OnChartValueSelec
         {
             pesos.add(lista.get(i).getPeso());
 
-            String[] cadena = lista.get(i).getFecha().split("/");
-            fechas.add(cadena[0] + "/" + cadena[1]);
+            /*String[] cadena = lista.get(i).getFecha().split("/");
+            fechas.add(cadena[0] + "/" + cadena[1]);*/
+
+            fechas.add(lista.get(i).getFecha());
         }
 
         LinesChart linesChart = new LinesChart(pesos, fechas, this);
